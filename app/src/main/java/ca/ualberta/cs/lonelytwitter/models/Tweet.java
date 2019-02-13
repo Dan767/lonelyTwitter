@@ -11,6 +11,7 @@
 package ca.ualberta.cs.lonelytwitter.models;
 
 import java.util.Date;
+import java.util.UUID;
 
 
 /**
@@ -25,6 +26,7 @@ public class Tweet {
 
     private String message;
     Date date;
+    UUID uuid;
 
     /**
      * Constructor for the tweet class. Sets the message.
@@ -33,6 +35,7 @@ public class Tweet {
     public Tweet(String message) {
 
         this.message = message;
+        this.uuid = UUID.randomUUID();
     }
 
     /**
@@ -50,6 +53,10 @@ public class Tweet {
      */
     public String getMessage(){
         return message;
+    }
+
+    public UUID getUuid() {
+        return uuid;
     }
 
     /**

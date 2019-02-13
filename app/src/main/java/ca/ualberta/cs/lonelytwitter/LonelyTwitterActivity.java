@@ -5,23 +5,27 @@ import java.io.BufferedWriter;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Date;
+
 
 import android.app.Activity;
 import android.content.Context;
 import android.os.Bundle;
+import android.provider.ContactsContract;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
 
+import com.firebase.client.DataSnapshot;
+import com.firebase.client.Firebase;
+import com.firebase.client.FirebaseError;
+import com.firebase.client.ValueEventListener;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -46,7 +50,9 @@ public class LonelyTwitterActivity extends Activity {
 	private EditText bodyText;
 	private ListView oldTweetsList;
 	private ArrayList<Tweet> tweetList = new ArrayList<Tweet>();
+	private int tweetcounter;
 	private ArrayAdapter<Tweet> adapter;
+	Firebase tweetchild;
 	/** Called when the activity is first created. */
 	/**
 	 * Overrides the onCreate functionality in Android,
@@ -57,9 +63,12 @@ public class LonelyTwitterActivity extends Activity {
 	 */
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
+		tweetcounter = 0;
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
+		Firebase.setAndroidContext(this);
 
+		final Firebase ref  = new Firebase("https://lonelytwitter-23e7c.firebaseio.com/");
 		bodyText = (EditText) findViewById(R.id.body);
 		Button saveButton = (Button) findViewById(R.id.save);
 		oldTweetsList = (ListView) findViewById(R.id.oldTweetsList);
@@ -73,17 +82,38 @@ public class LonelyTwitterActivity extends Activity {
 			 * @param v
 			 */
 			public void onClick(View v) {
+				tweetcounter += 1;
 				setResult(RESULT_OK);
 				String text = bodyText.getText().toString();
+
+				//tweetchild.setValue(text);
+
 				Tweet tweet = new Tweet(text);
-
+				tweetchild = ref.child(tweet.getUuid().toString());
 				tweetList.add(tweet);
-				//saveInFile(text, new Date(System.currentTimeMillis()));
-				//finish();
-
+				tweetchild.setValue(tweet);
                 adapter.notifyDataSetChanged();
                 saveInFile();
+			}
+		});
 
+		ref.addValueEventListener(new ValueEventListener() {
+			public void onDataChange(DataSnapshot snapshot) {
+			tweetList.clear();
+				for (DataSnapshot d: snapshot.child("Tweet").getChildren()) {
+					Tweet temp = d.getValue(Tweet.class);
+					if (temp.getMessage().substring(1,2).equals("U")) {
+						temp.setMessage(temp.getMessage().toUpperCase());
+					}
+					else if (temp.getMessage().substring(1,2).equals("L")) {
+						temp.setMessage(temp.getMessage().toLowerCase());
+					}
+					tweetList.add(temp);
+				}
+				tweetchild.setValue(tweetList);
+				adapter.notifyDataSetChanged();
+			}
+			public void onCancelled(FirebaseError firebaseError) {
 			}
 		});
 
@@ -100,9 +130,7 @@ public class LonelyTwitterActivity extends Activity {
                 setResult(RESULT_OK);
 
                 tweetList.clear();
-                //saveInFile(text, new Date(System.currentTimeMillis()));
-                //finish();
-
+                tweetcounter = 0;
                 adapter.notifyDataSetChanged();
                 saveInFile();
 
@@ -125,41 +153,50 @@ public class LonelyTwitterActivity extends Activity {
 		oldTweetsList.setAdapter(adapter);
 	}
 
+
+	public ArrayList<Tweet> getTweets() {
+		return tweetList; // Already added in chronological order!
+	}
+
+	public int getCount() {
+		return tweetcounter;
+	}
+
+	public boolean hasTweet(Tweet tweet) {
+		boolean duplicate = false;
+		for (int i=0; i<tweetcounter;++i) {
+			if (tweetList.get(i) == tweet) duplicate = true;
+		}
+		return duplicate;
+	}
+
+	public void addTweet(Tweet tweet) {
+		if (hasTweet(tweet)) throw new IllegalArgumentException("Tweet Already Added!\n");
+		else {
+			tweetcounter += 1;
+			tweetList.add(tweet);
+			adapter.notifyDataSetChanged();
+			saveInFile();
+		}
+
+	}
+
 	/**
 	 * This function is called on startup, and will load
 	 * all tweets stored in JSON from persistent storage.
 	 */
 	private void loadFromFile() {
-		//ArrayList<String> tweets = new ArrayList<String>();
-
-
         try {
 			FileInputStream fis = openFileInput(FILENAME);
 			BufferedReader in = new BufferedReader(new InputStreamReader(fis));
 
 			Gson gson = new GsonBuilder().create();
-
-
 			Type listType = new TypeToken<ArrayList<Tweet>>(){}.getType();
-
 			tweetList = gson.fromJson(in, listType);
-			/*
-
-			String line = in.readLine();
-			while (line != null) {
-				tweets.add(line);
-				line = in.readLine();
-			}
-			*/
 
 		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		//return tweets.toArray(new String[tweets.size()]);
 	}
 
 	/**
@@ -173,20 +210,12 @@ public class LonelyTwitterActivity extends Activity {
 					Context.MODE_PRIVATE);
 			BufferedWriter out = new BufferedWriter(new OutputStreamWriter(fos));
 
-			//FileWriter out = new FileWriter(FILENAME);
-
 			Gson gson = new GsonBuilder().create();
-
 			gson.toJson(tweetList,out);
-			//fos.write(new String(date.toString() + " | " + text)
-			//		.getBytes());
-			//fos.close();
             out.close();
 		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
